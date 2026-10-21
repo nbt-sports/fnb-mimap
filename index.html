@@ -129,20 +129,46 @@ $('searchBtn').onclick=search;$('schoolSearch').addEventListener('keydown',e=>{i
 $('format').onchange=()=>{const max=regionCount();teams.forEach(t=>{if(t.region>=max)t.region=t.region%max});render()};
 $('autoAssign').onclick=()=>{
  if(!teams.length)return;
- const k=regionCount(), target=capacity();
- // Seed region centers at evenly distributed longitudes; iteratively assign geographically using k-means.
- let pts=teams.map(t=>({x:t.lon,y:t.lat,t}));let centers=[];
- for(let i=0;i<k;i++){const idx=Math.floor(i*pts.length/k);centers.push({x:pts[idx].x,y:pts[idx].y})}
- for(let iter=0;iter<20;iter++){
-  let groups=centers.map(()=>[]);
-  pts.forEach(p=>{let best=0,dist=Infinity;centers.forEach((c,i)=>{let d=(p.x-c.x)**2+(p.y-c.y)**2;if(d<dist){dist=d;best=i}});groups[best].push(p)});
-  centers=centers.map((c,i)=>groups[i].length?{x:groups[i].reduce((s,p)=>s+p.x,0)/groups[i].length,y:groups[i].reduce((s,p)=>s+p.y,0)/groups[i].length}:c);
+ const k=regionCount(), n=teams.length, quota=Math.min(capacity(),Math.ceil(n/k));
+ // Haversine distance in kilometers, so both latitude and longitude affect real-world distance.
+ const distance=(a,b)=>{
+  const rad=Math.PI/180, dLat=(b.lat-a.lat)*rad, dLon=(b.lon-a.lon)*rad;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
+  return 6371*2*Math.atan2(Math.sqrt(x),Math.sqrt(Math.max(0,1-x)));
+ };
+ const pts=teams.map(t=>({lat:+t.lat,lon:+t.lon,t}));
+ // Farthest-point seeding spreads starting centers across the actual map, rather than west-to-east order.
+ const centers=[{lat:pts.reduce((s,p)=>s+p.lat,0)/n,lon:pts.reduce((s,p)=>s+p.lon,0)/n}];
+ while(centers.length<Math.min(k,n)){
+  let pick=null,best=-1;
+  pts.forEach(p=>{
+   const nearest=Math.min(...centers.map(c=>distance(p,c)));
+   if(nearest>best){best=nearest;pick=p}
+  });
+  centers.push({lat:pick.lat,lon:pick.lon});
  }
- // Balance capacities while favoring nearby center.
- let ranked=pts.map(p=>({p,dist:centers.map(c=>(p.x-c.x)**2+(p.y-c.y)**2).sort((a,b)=>a-b)}));
- let assigned=Array(k).fill(0);ranked.sort((a,b)=>Math.max(...b.dist)-Math.max(...a.dist));
- ranked.forEach(o=>{let choices=centers.map((c,i)=>({i,d:(o.p.x-c.x)**2+(o.p.y-c.y)**2,count:assigned[i]})).filter(c=>assigned[c.i]<target || $('format').value==='custom').sort((a,b)=>a.d-b.d||a.count-b.count);let chosen=choices[0]||centers.map((c,i)=>({i,d:(o.p.x-c.x)**2+(o.p.y-c.y)**2,count:assigned[i]})).sort((a,b)=>a.count-b.count||a.d-b.d)[0];o.p.t.region=chosen.i;assigned[chosen.i]++});
- render();$('saveStatus').textContent='Regions auto-assigned by approximate geographic clustering. Review and adjust manually.';
+ while(centers.length<k)centers.push({...centers[centers.length-1]});
+ // Repeatedly make compact, balanced groups using nearest available team/region pairs.
+ for(let iter=0;iter<30;iter++){
+  const pairs=[];
+  pts.forEach((p,pi)=>centers.forEach((c,ri)=>pairs.push({pi,ri,d:distance(p,c)})));
+  pairs.sort((a,b)=>a.d-b.d);
+  const used=new Set(),counts=Array(k).fill(0),groups=Array.from({length:k},()=>[]);
+  for(const pair of pairs){
+   if(used.has(pair.pi)||counts[pair.ri]>=quota)continue;
+   used.add(pair.pi);counts[pair.ri]++;groups[pair.ri].push(pts[pair.pi]);
+   if(used.size===n)break;
+  }
+  // Update each region center from its assigned schools before the next pass.
+  centers.forEach((c,i)=>{
+   if(groups[i].length){
+    c.lat=groups[i].reduce((s,p)=>s+p.lat,0)/groups[i].length;
+    c.lon=groups[i].reduce((s,p)=>s+p.lon,0)/groups[i].length;
+   }
+  });
+  groups.forEach((g,i)=>g.forEach(p=>p.t.region=i));
+ }
+ render();$('saveStatus').textContent='Regions auto-assigned using latitude, longitude, and approximate real-world distance, with balanced region sizes. Review and adjust manually.';
 };
 $('clearBtn').onclick=()=>{if(confirm('Remove all selected teams from this project?')){teams=[];render();$('searchStatus').textContent='All teams cleared.'}};
 function payload(){return {app:'Michigan HS Football Playoff Mapper',version:1,season:$('season').value,format:$('format').value,teams:teams.map(({id,name,city,address,lat,lon,region,source})=>({id,name,city,address,lat,lon,region,source}))}}
