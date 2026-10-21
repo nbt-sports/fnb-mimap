@@ -14,7 +14,7 @@ main{display:grid;grid-template-columns:minmax(300px,390px) 1fr;gap:14px;padding
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px;box-shadow:0 2px 7px #17212b08;min-width:0}
 h2{font-size:16px;margin:0 0 10px}label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
 input,select,button{font:inherit}input[type=text],select{width:100%;border:1px solid #cbd5df;border-radius:8px;padding:10px;background:#fff;color:var(--ink)}
-button{border:1px solid #cbd5df;border-radius:8px;background:#fff;padding:9px 11px;cursor:pointer;font-weight:650;color:var(--ink)}button:hover{background:#f0f4f6}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.danger{color:#a52b2b}button:disabled{opacity:.4;cursor:not-allowed}
+button{border:1px solid #cbd5df;border-radius:8px;background:#fff;padding:9px 11px;cursor:pointer;font-weight:650;color:var(--ink)}button:hover{background:#f0f4f6}.school-map-label{font-weight:700;font-size:12px;color:#17212b;background:#fff;border:1px solid #b9c4ce;border-radius:4px;padding:2px 5px;box-shadow:0 1px 4px #17212b30;white-space:nowrap}.school-map-label:before{border-right-color:#b9c4ce}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.danger{color:#a52b2b}button:disabled{opacity:.4;cursor:not-allowed}
 .row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.row .grow{flex:1}.stack{display:grid;gap:10px}.subtle{color:var(--muted);font-size:12px}.count{font-size:13px;font-weight:800}.divider{height:1px;background:var(--line);margin:14px 0}
 #map{height:min(68vh,760px);min-height:440px;border-radius:10px;border:1px solid var(--line);z-index:1}
 .maphead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}.maphead h2{margin:0}
@@ -79,13 +79,13 @@ function regionColor(n){return COLORS[n%COLORS.length]}
 function safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function render(){
  $('teamCount').textContent=`${teams.length} / 32`; $('teamCount').style.color=teams.length===32?'#b91c1c':'';
- $('teamList').innerHTML=teams.map(t=>`<div class="team"><span class="dot" style="background:${regionColor(t.region)}"></span><div><div class="teamtop"><div><div class="teamname">${safe(t.name)}</div><div class="teammeta">${safe(t.city||'Michigan')} · ${Number(t.lat).toFixed(4)}, ${Number(t.lon).toFixed(4)}</div></div></div><div class="teamcontrols"><select aria-label="Region for ${safe(t.name)}" data-region="${t.id}">${Array.from({length:regionCount()},(_,i)=>`<option value="${i}" ${i===t.region?'selected':''}>${rname(i)}</option>`).join('')}</select><button data-remove="${t.id}" class="danger">Remove</button></div></div></div>`).join('');
+ $('teamList').innerHTML=teams.map(t=>`<div class="team"><span class="dot" style="background:${regionColor(t.region)}"></span><div><div class="teamtop"><div><div class="teamname">${safe(t.officialName||t.name)}</div><div class="teammeta">${safe(t.city||'Michigan')} · ${Number(t.lat).toFixed(4)}, ${Number(t.lon).toFixed(4)}</div></div></div><div class="teamcontrols"><select aria-label="Region for ${safe(t.name)}" data-region="${t.id}">${Array.from({length:regionCount()},(_,i)=>`<option value="${i}" ${i===t.region?'selected':''}>${rname(i)}</option>`).join('')}</select><button data-remove="${t.id}" class="danger">Remove</button></div></div></div>`).join('');
  $('teamList').querySelectorAll('[data-region]').forEach(el=>el.onchange=()=>{const t=teams.find(t=>t.id===+el.dataset.region);if(t){t.region=+el.value;render()}});
  $('teamList').querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{teams=teams.filter(t=>t.id!==+el.dataset.remove);render()});
  Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
  teams.forEach((t,i)=>{
    const icon=L.divIcon({className:'',html:`<div style="background:${regionColor(t.region)};border:2px solid white;border-radius:50%;width:29px;height:29px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:12px;box-shadow:0 1px 5px #2228">${i+1}</div>`,iconSize:[29,29],iconAnchor:[14,14]});
-   const m=L.marker([t.lat,t.lon],{icon}).addTo(map).bindPopup(`<b>${safe(t.name)}</b><br>${safe(t.city||'Michigan')}<br>${rname(t.region)}<br><button onclick="focusTeam(${t.id})">View team</button>`);
+   const m=L.marker([t.lat,t.lon],{icon,title:t.officialName||t.name,alt:t.officialName||t.name}).addTo(map).bindTooltip(safe(t.officialName||t.name),{permanent:true,direction:'right',offset:[12,0],className:'school-map-label'}).bindPopup(`<b>${safe(t.officialName||t.name)}</b><br>${safe(t.city||'Michigan')}<br>${rname(t.region)}<br><button onclick="focusTeam(${t.id})">View team</button>`);
    markers[t.id]=m;
  });
  $('legend').innerHTML=Array.from({length:regionCount()},(_,i)=>`<span><i style="background:${regionColor(i)}"></i>${rname(i)}</span>`).join('');
@@ -97,7 +97,7 @@ function addTeam(place){
  if(teams.some(t=>t.name.toLowerCase()===place.name.toLowerCase()&&Math.abs(t.lat-place.lat)<.005&&Math.abs(t.lon-place.lon)<.005)){$('searchStatus').textContent='That school is already selected.';return}
  const f=$('format').value, maxR=regionCount();let counts=Array.from({length:maxR},(_,i)=>teams.filter(t=>t.region===i).length);
  let region=counts.findIndex(n=>n<capacity());if(region<0)region=teams.length%maxR;
- teams.push({id:nextId++,name:place.name,city:place.city||'',address:place.address||'',lat:+place.lat,lon:+place.lon,region:Math.max(0,region),source:place.source||''});
+ teams.push({id:nextId++,name:place.officialName||place.name,officialName:place.officialName||place.name,city:place.city||'',address:place.address||'',lat:+place.lat,lon:+place.lon,region:Math.max(0,region),source:place.source||''});
  render();$('results').innerHTML='';$('searchStatus').textContent=`Added ${place.name}.`;
  if(teams.length===1)map.setView([place.lat,place.lon],8);else fitTeams();
 }
