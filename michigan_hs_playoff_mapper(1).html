@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Michigan HS Football Playoff Mapper</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--ink:#17212b;--muted:#637282;--line:#dce2e8;--accent:#1f5f46;--r1:#2563eb;--r2:#d97706;--r3:#059669;--r4:#9333ea}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#153b2e;color:white;padding:18px 22px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+header h1{font-size:clamp(20px,3vw,27px);margin:0}header p{margin:3px 0 0;color:#d7e6df;font-size:13px}
+main{display:grid;grid-template-columns:minmax(300px,390px) 1fr;gap:14px;padding:14px;max-width:1700px;margin:auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px;box-shadow:0 2px 7px #17212b08;min-width:0}
+h2{font-size:16px;margin:0 0 10px}label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
+input,select,button{font:inherit}input[type=text],select{width:100%;border:1px solid #cbd5df;border-radius:8px;padding:10px;background:#fff;color:var(--ink)}
+button{border:1px solid #cbd5df;border-radius:8px;background:#fff;padding:9px 11px;cursor:pointer;font-weight:650;color:var(--ink)}button:hover{background:#f0f4f6}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.danger{color:#a52b2b}button:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.row .grow{flex:1}.stack{display:grid;gap:10px}.subtle{color:var(--muted);font-size:12px}.count{font-size:13px;font-weight:800}.divider{height:1px;background:var(--line);margin:14px 0}
+#map{height:min(68vh,760px);min-height:440px;border-radius:10px;border:1px solid var(--line);z-index:1}
+.maphead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}.maphead h2{margin:0}
+.results{display:grid;gap:6px;max-height:240px;overflow:auto}.result{border:1px solid var(--line);border-radius:8px;padding:9px;text-align:left;width:100%;background:white;font-weight:500}.result strong{display:block}.result span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.teamlist{display:grid;gap:7px;max-height:48vh;overflow:auto}.team{border:1px solid var(--line);border-radius:9px;padding:9px;display:grid;grid-template-columns:10px 1fr;gap:9px}.dot{width:10px;height:10px;border-radius:50%;margin-top:5px}.teamtop{display:flex;gap:7px;justify-content:space-between;align-items:start}.teamname{font-weight:750;font-size:13px}.teammeta{color:var(--muted);font-size:12px}.teamcontrols{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:7px}.teamcontrols select{padding:6px;font-size:12px}.teamcontrols button{padding:5px 8px;font-size:12px}
+.regiongrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.region{border:1px solid var(--line);border-radius:9px;padding:9px;min-width:0}.region h3{font-size:12px;margin:0 0 5px}.region ul{margin:0;padding-left:15px;font-size:11px;color:var(--muted)}.region li{margin:2px 0;overflow-wrap:anywhere}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.legend span{display:inline-flex;gap:5px;align-items:center}.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.notice{background:#f7faf8;border:1px solid #d8e8df;padding:9px 10px;border-radius:8px;color:#345445;font-size:12px}
+footer{padding:0 16px 18px;max-width:1700px;margin:auto;color:var(--muted);font-size:11px}
+.leaflet-popup-content{line-height:1.45}.pinlabel{font-weight:800;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:9px}.side{order:2}.maparea{order:1}#map{height:55vh;min-height:380px}.teamlist{max-height:330px}.regiongrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header><div><h1>Michigan HS Football Playoff Mapper</h1><p>Choose up to 32 schools, map their locations, and build geographic playoff regions.</p></div><div class="row"><button id="saveBtn" class="primary">Save in this browser</button><button id="exportJson">Export project</button></div></header>
+<main>
+<section class="panel side">
+  <div class="stack">
+    <div class="row">
+      <div class="grow"><label for="season">SEASON / PROJECT</label><select id="season"><option>2026</option><option>2025</option><option>2024</option><option>2023</option><option>2022</option><option>2021</option><option>2020</option><option>2019</option><option>2018</option><option>2017</option><option>2016</option><option>2015</option><option>Custom</option></select></div>
+      <div class="grow"><label for="format">REGION FORMAT</label><select id="format"><option value="4x8">4 regions × 8</option><option value="2x16">2 regions × 16</option><option value="8x4">8 regions × 4</option><option value="custom">Custom / manual</option></select></div>
+    </div>
+    <div class="notice">School search uses OpenStreetMap place data to find Michigan school locations. Check each result before adding it; the directory is not an official MHSAA roster.</div>
+    <div>
+      <label for="schoolSearch">SEARCH MICHIGAN HIGH SCHOOLS</label>
+      <div class="row"><input id="schoolSearch" type="text" placeholder="e.g. Rockford, Gobles, Detroit Cass Tech"><button id="searchBtn" class="primary">Search</button></div>
+      <div class="subtle" style="margin-top:5px">Search by school name or school + city. Choose the correct school from results.</div>
+    </div>
+    <div id="searchStatus" class="subtle" aria-live="polite"></div>
+    <div id="results" class="results"></div>
+    <div class="divider"></div>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Selected teams</h2><span id="teamCount" class="count">0 / 32</span></div>
+    <div class="row"><button id="autoAssign">Auto-assign regions</button><button id="clearBtn" class="danger">Clear teams</button></div>
+    <div id="teamList" class="teamlist"></div>
+    <div class="divider"></div>
+    <h2>Save, load & export</h2>
+    <div class="row"><button id="loadBtn">Load saved</button><button id="exportCsv">Export teams CSV</button><label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)"><input id="importFile" type="file" accept=".json,application/json" style="width:150px">Import project</label></div>
+    <div id="saveStatus" class="subtle">Projects are saved locally in this browser unless you export a file.</div>
+  </div>
+</section>
+<section class="panel maparea">
+  <div class="maphead"><h2>Team geography</h2><div class="legend" id="legend"></div></div>
+  <div id="map" role="application" aria-label="Interactive map of selected Michigan high schools"></div>
+  <div class="regiongrid" id="regionSummary"></div>
+</section>
+</main>
+<footer>Map tiles and school lookup are provided by OpenStreetMap contributors. Search requires an internet connection. This app does not automatically identify playoff qualifiers; select the schools you want to include. Save/export often to keep a portable copy.</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS=['#2563eb','#d97706','#059669','#9333ea','#dc2626','#0891b2','#a16207','#be185d'];
+const REGION_NAMES=['Region 1','Region 2','Region 3','Region 4','Region 5','Region 6','Region 7','Region 8'];
+let teams=[], nextId=1, markers={};
+const $=id=>document.getElementById(id);
+const map=L.map('map').setView([44.3,-85.5],6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution: '&copy; OpenStreetMap contributors &copy; CARTO',subdomains: 'abcd',maxZoom: 20}).addTo(map);;
+L.rectangle([[41.65,-90.5],[48.35,-82.1]],{color:'#1f5f46',weight:1,fill:false,dashArray:'5 6'}).addTo(map);
+function regionCount(){const f=$('format').value;return f==='2x16'?2:f==='8x4'?8:f==='custom'?8:4}
+function capacity(){const f=$('format').value;return f==='2x16'?16:f==='8x4'?4:f==='custom'?32:8}
+function rname(n){return REGION_NAMES[n]||`Region ${n+1}`}
+function regionColor(n){return COLORS[n%COLORS.length]}
+function safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+ $('teamCount').textContent=`${teams.length} / 32`; $('teamCount').style.color=teams.length===32?'#b91c1c':'';
+ $('teamList').innerHTML=teams.map(t=>`<div class="team"><span class="dot" style="background:${regionColor(t.region)}"></span><div><div class="teamtop"><div><div class="teamname">${safe(t.name)}</div><div class="teammeta">${safe(t.city||'Michigan')} · ${Number(t.lat).toFixed(4)}, ${Number(t.lon).toFixed(4)}</div></div></div><div class="teamcontrols"><select aria-label="Region for ${safe(t.name)}" data-region="${t.id}">${Array.from({length:regionCount()},(_,i)=>`<option value="${i}" ${i===t.region?'selected':''}>${rname(i)}</option>`).join('')}</select><button data-remove="${t.id}" class="danger">Remove</button></div></div></div>`).join('');
+ $('teamList').querySelectorAll('[data-region]').forEach(el=>el.onchange=()=>{const t=teams.find(t=>t.id===+el.dataset.region);if(t){t.region=+el.value;render()}});
+ $('teamList').querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{teams=teams.filter(t=>t.id!==+el.dataset.remove);render()});
+ Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
+ teams.forEach((t,i)=>{
+   const icon=L.divIcon({className:'',html:`<div style="background:${regionColor(t.region)};border:2px solid white;border-radius:50%;width:29px;height:29px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:12px;box-shadow:0 1px 5px #2228">${i+1}</div>`,iconSize:[29,29],iconAnchor:[14,14]});
+   const m=L.marker([t.lat,t.lon],{icon}).addTo(map).bindPopup(`<b>${safe(t.name)}</b><br>${safe(t.city||'Michigan')}<br>${rname(t.region)}<br><button onclick="focusTeam(${t.id})">View team</button>`);
+   markers[t.id]=m;
+ });
+ $('legend').innerHTML=Array.from({length:regionCount()},(_,i)=>`<span><i style="background:${regionColor(i)}"></i>${rname(i)}</span>`).join('');
+ $('regionSummary').innerHTML=Array.from({length:regionCount()},(_,i)=>{let ts=teams.filter(t=>t.region===i);return `<div class="region"><h3><span style="color:${regionColor(i)}">●</span> ${rname(i)} <span style="color:var(--muted);font-weight:500">(${ts.length}/${capacity()===32?'—':capacity()})</span></h3><ul>${ts.length?ts.map(t=>`<li>${safe(t.name)}</li>`).join(''):'<li>No teams assigned</li>'}</ul></div>`}).join('');
+}
+window.focusTeam=id=>{let t=teams.find(t=>t.id===id);if(t){map.setView([t.lat,t.lon],10);markers[id]?.openPopup()}};
+function addTeam(place){
+ if(teams.length>=32){$('searchStatus').textContent='You already have 32 teams. Remove a team before adding another.';return}
+ if(teams.some(t=>t.name.toLowerCase()===place.name.toLowerCase()&&Math.abs(t.lat-place.lat)<.005&&Math.abs(t.lon-place.lon)<.005)){$('searchStatus').textContent='That school is already selected.';return}
+ const f=$('format').value, maxR=regionCount();let counts=Array.from({length:maxR},(_,i)=>teams.filter(t=>t.region===i).length);
+ let region=counts.findIndex(n=>n<capacity());if(region<0)region=teams.length%maxR;
+ teams.push({id:nextId++,name:place.name,city:place.city||'',lat:+place.lat,lon:+place.lon,region:Math.max(0,region),osmType:place.osmType||''});
+ render();$('results').innerHTML='';$('searchStatus').textContent=`Added ${place.name}.`;
+ if(teams.length===1)map.setView([place.lat,place.lon],8);else fitTeams();
+}
+function fitTeams(){if(teams.length){const b=L.latLngBounds(teams.map(t=>[t.lat,t.lon]));map.fitBounds(b.pad(.12),{maxZoom:8})}}
+async function search(){
+ const q=$('schoolSearch').value.trim();if(!q)return;
+ $('searchStatus').textContent='Searching OpenStreetMap…';$('results').innerHTML='';
+ try{
+  const query=q.toLowerCase().includes('michigan')?q:q+', Michigan, USA';
+  const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q='+encodeURIComponent(query);
+  const res=await fetch(url,{headers:{'Accept-Language':'en-US'}});if(!res.ok)throw Error('Lookup unavailable');const data=await res.json();
+  const results=data.filter(p=>{const a=p.address||{};return (a.state||'').toLowerCase().includes('michigan')||p.display_name.toLowerCase().includes('michigan')||query.toLowerCase().includes('michigan')}).map(p=>{
+   const a=p.address||{};let name=p.name||p.display_name.split(',')[0];let city=a.city||a.town||a.village||a.hamlet||a.county||'Michigan';
+   return {name,city,lat:+p.lat,lon:+p.lon,osmType:p.type,display:p.display_name,category:p.category};
+  });
+  $('searchStatus').textContent=results.length?`Found ${results.length} possible location(s). Confirm the school and city before adding.`:'No Michigan results found. Try adding the city or district name.';
+  $('results').innerHTML=results.map((p,i)=>`<button class="result" data-result="${i}"><strong>${safe(p.name)}</strong><span>${safe(p.display)}</span></button>`).join('');
+  $('results').querySelectorAll('[data-result]').forEach(el=>el.onclick=()=>addTeam(results[+el.dataset.result]));
+ }catch(e){$('searchStatus').textContent='Search failed. Check your internet connection and try again.'}
+}
+$('searchBtn').onclick=search;$('schoolSearch').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('format').onchange=()=>{const max=regionCount();teams.forEach(t=>{if(t.region>=max)t.region=t.region%max});render()};
+$('autoAssign').onclick=()=>{
+ if(!teams.length)return;
+ const k=regionCount(), target=capacity();
+ // Seed region centers at evenly distributed longitudes; iteratively assign geographically using k-means.
+ let pts=teams.map(t=>({x:t.lon,y:t.lat,t}));let centers=[];
+ for(let i=0;i<k;i++){const idx=Math.floor(i*pts.length/k);centers.push({x:pts[idx].x,y:pts[idx].y})}
+ for(let iter=0;iter<20;iter++){
+  let groups=centers.map(()=>[]);
+  pts.forEach(p=>{let best=0,dist=Infinity;centers.forEach((c,i)=>{let d=(p.x-c.x)**2+(p.y-c.y)**2;if(d<dist){dist=d;best=i}});groups[best].push(p)});
+  centers=centers.map((c,i)=>groups[i].length?{x:groups[i].reduce((s,p)=>s+p.x,0)/groups[i].length,y:groups[i].reduce((s,p)=>s+p.y,0)/groups[i].length}:c);
+ }
+ // Balance capacities while favoring nearby center.
+ let ranked=pts.map(p=>({p,dist:centers.map(c=>(p.x-c.x)**2+(p.y-c.y)**2).sort((a,b)=>a-b)}));
+ let assigned=Array(k).fill(0);ranked.sort((a,b)=>Math.max(...b.dist)-Math.max(...a.dist));
+ ranked.forEach(o=>{let choices=centers.map((c,i)=>({i,d:(o.p.x-c.x)**2+(o.p.y-c.y)**2,count:assigned[i]})).filter(c=>assigned[c.i]<target || $('format').value==='custom').sort((a,b)=>a.d-b.d||a.count-b.count);let chosen=choices[0]||centers.map((c,i)=>({i,d:(o.p.x-c.x)**2+(o.p.y-c.y)**2,count:assigned[i]})).sort((a,b)=>a.count-b.count||a.d-b.d)[0];o.p.t.region=chosen.i;assigned[chosen.i]++});
+ render();$('saveStatus').textContent='Regions auto-assigned by approximate geographic clustering. Review and adjust manually.';
+};
+$('clearBtn').onclick=()=>{if(confirm('Remove all selected teams from this project?')){teams=[];render();$('searchStatus').textContent='All teams cleared.'}};
+function payload(){return {app:'Michigan HS Football Playoff Mapper',version:1,season:$('season').value,format:$('format').value,teams:teams.map(({id,name,city,lat,lon,region})=>({id,name,city,lat,lon,region}))}}
+function download(name,text,type){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+$('saveBtn').onclick=()=>{try{localStorage.setItem('miHsPlayoffMapper',JSON.stringify(payload()));$('saveStatus').textContent='Saved in this browser. Use Export project for a portable backup.'}catch(e){$('saveStatus').textContent='Could not save in this browser. Export your project instead.'}};
+$('loadBtn').onclick=()=>{try{const s=localStorage.getItem('miHsPlayoffMapper');if(!s){$('saveStatus').textContent='No saved project found in this browser.';return}loadPayload(JSON.parse(s));$('saveStatus').textContent='Saved project loaded.'}catch(e){$('saveStatus').textContent='Could not load saved project.'}};
+$('exportJson').onclick=()=>download(`michigan-playoff-map-${$('season').value}.json`,JSON.stringify(payload(),null,2),'application/json');
+$('exportCsv').onclick=()=>{const rows=[['Season','School','City','Latitude','Longitude','Region'],...teams.map(t=>[$('season').value,t.name,t.city,t.lat,t.lon,rname(t.region)])];download(`michigan-playoff-teams-${$('season').value}.csv`,rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv;charset=utf-8')};
+function loadPayload(p){if(!p||!Array.isArray(p.teams))throw Error('Invalid project');$('season').value=p.season||'2026';$('format').value=p.format||'4x8';teams=p.teams.slice(0,32).map(t=>({...t,id:nextId++,lat:+t.lat,lon:+t.lon,region:+t.region||0}));render();fitTeams()}
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{loadPayload(JSON.parse(await f.text()));$('saveStatus').textContent='Project imported. Click Save in this browser to keep it here.'}catch(err){$('saveStatus').textContent='Could not import file. Choose a project JSON exported by this app.'}e.target.value=''};
+render();
+</script>
+</body></html>
