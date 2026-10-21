@@ -44,6 +44,12 @@ footer{padding:0 16px 18px;max-width:1700px;margin:auto;color:var(--muted);font-
       <div class="subtle" style="margin-top:5px">Search by school name or school + city. Confirm the official name/address with MHSAA when results are ambiguous.</div>
       <div style="margin-top:8px"><a id="mhsaaDirectoryLink" href="https://www.mhsaa.com/schools" target="_blank" rel="noopener noreferrer" style="display:inline-block;border:1px solid #cbd5df;border-radius:8px;padding:8px 10px;text-decoration:none;color:#1f5f46;font-weight:700;font-size:13px">Open official MHSAA School Directory ↗</a></div>
     </div>
+    <div class="divider"></div>
+    <h2>Add a school manually</h2>
+    <div class="subtle" style="margin-bottom:8px">For defunct or missing schools, enter the school's name and its street address. The address will be located on the map.</div>
+    <div><label for="manualSchoolName">SCHOOL NAME</label><input id="manualSchoolName" type="text" placeholder="e.g. Detroit Northern High School"></div>
+    <div style="margin-top:8px"><label for="manualSchoolAddress">FULL ADDRESS</label><input id="manualSchoolAddress" type="text" placeholder="Street address, city, MI, ZIP"></div>
+    <div class="row" style="margin-top:8px"><button id="manualAddBtn" class="primary">Locate & add school</button></div>
     <div id="searchStatus" class="subtle" aria-live="polite"></div>
     <div id="results" class="results"></div>
     <div class="divider"></div>
@@ -126,6 +132,25 @@ async function search(){
  }catch(e){$('searchStatus').textContent='The state school database could not be reached. Check your connection and try again, or use the MHSAA directory link to verify the school.'}
 }
 $('searchBtn').onclick=search;$('schoolSearch').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('manualAddBtn').onclick=addManualSchool;
+async function addManualSchool(){
+ const name=$('manualSchoolName').value.trim(), address=$('manualSchoolAddress').value.trim();
+ if(!name||!address){$('searchStatus').textContent='Enter both the school name and full address.';return}
+ $('manualAddBtn').disabled=true;$('searchStatus').textContent='Locating the address on the map…';
+ try{
+  const params=new URLSearchParams({q:address,format:'jsonv2',limit:'1',countrycodes:'us',addressdetails:'1'});
+  const res=await fetch('https://nominatim.openstreetmap.org/search?'+params.toString(),{headers:{'Accept':'application/json'}});
+  if(!res.ok)throw Error('Address lookup unavailable');
+  const found=await res.json();
+  if(!found.length){$('searchStatus').textContent='Could not locate that address. Try a complete street address with city and ZIP code.';return}
+  const p=found[0],lat=Number(p.lat),lon=Number(p.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)){ $('searchStatus').textContent='The address result did not include usable map coordinates.';return}
+  const city=String(p.address?.city||p.address?.town||p.address?.village||p.address?.hamlet||p.address?.municipality||p.address?.county||'').trim();
+  addTeam({name:name,officialName:name,city:city,address:address,lat:lat,lon:lon,source:'Manually entered; address located with OpenStreetMap'});
+  $('manualSchoolName').value='';$('manualSchoolAddress').value='';
+ }catch(e){$('searchStatus').textContent='Could not locate that address right now. Check the address and try again.'}
+ finally{$('manualAddBtn').disabled=false}
+}
 $('format').onchange=()=>{const max=regionCount();teams.forEach(t=>{if(t.region>=max)t.region=t.region%max});render()};
 $('autoAssign').onclick=()=>{
  if(!teams.length)return;
