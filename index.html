@@ -14,7 +14,7 @@ main{display:grid;grid-template-columns:minmax(300px,390px) 1fr;gap:14px;padding
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px;box-shadow:0 2px 7px #17212b08;min-width:0}
 h2{font-size:16px;margin:0 0 10px}label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
 input,select,button{font:inherit}input[type=text],select{width:100%;border:1px solid #cbd5df;border-radius:8px;padding:10px;background:#fff;color:var(--ink)}
-button{border:1px solid #cbd5df;border-radius:8px;background:#fff;padding:9px 11px;cursor:pointer;font-weight:650;color:var(--ink)}button:hover{background:#f0f4f6}.school-map-label{font-weight:700;font-size:12px;color:#17212b;background:#fff;border:1px solid #b9c4ce;border-radius:4px;padding:2px 5px;box-shadow:0 1px 4px #17212b30;white-space:nowrap}.school-map-label:before{border-right-color:#b9c4ce}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.danger{color:#a52b2b}button:disabled{opacity:.4;cursor:not-allowed}
+button{border:1px solid #cbd5df;border-radius:8px;background:#fff;padding:9px 11px;cursor:pointer;font-weight:650;color:var(--ink)}button:hover{background:#f0f4f6}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.danger{color:#a52b2b}button:disabled{opacity:.4;cursor:not-allowed}
 .row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.row .grow{flex:1}.stack{display:grid;gap:10px}.subtle{color:var(--muted);font-size:12px}.count{font-size:13px;font-weight:800}.divider{height:1px;background:var(--line);margin:14px 0}
 #map{height:min(68vh,760px);min-height:440px;border-radius:10px;border:1px solid var(--line);z-index:1}
 .maphead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}.maphead h2{margin:0}
@@ -85,7 +85,7 @@ function render(){
  Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
  teams.forEach((t,i)=>{
    const icon=L.divIcon({className:'',html:`<div style="background:${regionColor(t.region)};border:2px solid white;border-radius:50%;width:29px;height:29px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:12px;box-shadow:0 1px 5px #2228">${i+1}</div>`,iconSize:[29,29],iconAnchor:[14,14]});
-   const m=L.marker([t.lat,t.lon],{icon,title:t.officialName||t.name,alt:t.officialName||t.name}).addTo(map).bindTooltip(safe(t.officialName||t.name),{permanent:true,direction:'right',offset:[12,0],className:'school-map-label'}).bindPopup(`<b>${safe(t.officialName||t.name)}</b><br>${safe(t.city||'Michigan')}<br>${rname(t.region)}<br><button onclick="focusTeam(${t.id})">View team</button>`);
+   const m=L.marker([t.lat,t.lon],{icon,title:t.officialName||t.name,alt:t.officialName||t.name}).addTo(map).bindPopup(`<b>${safe(t.officialName||t.name)}</b><br>${safe(t.city||'Michigan')}<br>${rname(t.region)}<br><button onclick="focusTeam(${t.id})">View team</button>`);
    markers[t.id]=m;
  });
  $('legend').innerHTML=Array.from({length:regionCount()},(_,i)=>`<span><i style="background:${regionColor(i)}"></i>${rname(i)}</span>`).join('');
