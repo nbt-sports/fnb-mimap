@@ -116,7 +116,7 @@ async function search(){
   const looksHighSchool=a=>{const g=gradeText(a);return /(^|[^0-9])0?9([^0-9]|$)|(^|[^0-9])10([^0-9]|$)|(^|[^0-9])11([^0-9]|$)|(^|[^0-9])12([^0-9]|$)/.test(g)||/high school|senior high/i.test(String(a.COMMONNM||'')+' '+String(a.OFFICIALNM||''))};
   const high=records.filter(looksHighSchool);
   const chosen=(high.length?high:records).slice(0,20).map(a=>{
-   const name=String(a.COMMONNM||a.OFFICIALNM||'Michigan school').trim();const officialName=String(a.OFFICIALNM||a.COMMONNM||'').trim();const city=String(a.CITY||'Michigan').trim();
+   const officialName=String(a.OFFICIALNM||'').trim();const commonName=String(a.COMMONNM||'').trim();const name=String(officialName||commonName||'Michigan school').trim();const city=String(a.CITY||'Michigan').trim();
    const street=[a.STREET,a.ADDRLINE2].filter(Boolean).join(', ');const address=[street,city,a.STATE,a.ZIP].filter(Boolean).join(', ');
    return {name:name,officialName:officialName,city:city,lat:+a.LATITUDE,lon:+a.LONGITUDE,address:address,display:[address,gradeText(a)?'Grades '+gradeText(a):''].filter(Boolean).join(' · '),grades:gradeText(a),source:'Michigan CEPI school location database'};
   });
