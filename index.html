@@ -37,7 +37,7 @@ footer{padding:0 16px 18px;max-width:1700px;margin:auto;color:var(--muted);font-
       <div class="grow"><label for="season">SEASON / PROJECT</label><select id="season"><option>2026</option><option>2025</option><option>2024</option><option>2023</option><option>2022</option><option>2021</option><option>2020</option><option>2019</option><option>2018</option><option>2017</option><option>2016</option><option>2015</option><option>Custom</option></select></div>
       <div class="grow"><label for="format">REGION FORMAT</label><select id="format"><option value="4x8">4 regions × 8</option><option value="2x16">2 regions × 16</option><option value="8x4">8 regions × 4</option><option value="custom">Custom / manual</option></select></div>
     </div>
-    <div class="notice">School search uses OpenStreetMap place data to find Michigan school locations. Check each result before adding it; the directory is not an official MHSAA roster.</div>
+    <div class="notice">School search uses Michigan's CEPI school-location database for names, addresses, grade spans, and coordinates. Use the official MHSAA directory link below to verify football-program membership and the correct school.</div>
     <div>
       <label for="schoolSearch">SEARCH MICHIGAN HIGH SCHOOLS</label>
       <div class="row"><input id="schoolSearch" type="text" placeholder="e.g. Rockford, Gobles, Detroit Cass Tech"><button id="searchBtn" class="primary">Search</button></div>
@@ -97,26 +97,33 @@ function addTeam(place){
  if(teams.some(t=>t.name.toLowerCase()===place.name.toLowerCase()&&Math.abs(t.lat-place.lat)<.005&&Math.abs(t.lon-place.lon)<.005)){$('searchStatus').textContent='That school is already selected.';return}
  const f=$('format').value, maxR=regionCount();let counts=Array.from({length:maxR},(_,i)=>teams.filter(t=>t.region===i).length);
  let region=counts.findIndex(n=>n<capacity());if(region<0)region=teams.length%maxR;
- teams.push({id:nextId++,name:place.name,city:place.city||'',lat:+place.lat,lon:+place.lon,region:Math.max(0,region),osmType:place.osmType||''});
+ teams.push({id:nextId++,name:place.name,city:place.city||'',address:place.address||'',lat:+place.lat,lon:+place.lon,region:Math.max(0,region),source:place.source||''});
  render();$('results').innerHTML='';$('searchStatus').textContent=`Added ${place.name}.`;
  if(teams.length===1)map.setView([place.lat,place.lon],8);else fitTeams();
 }
 function fitTeams(){if(teams.length){const b=L.latLngBounds(teams.map(t=>[t.lat,t.lon]));map.fitBounds(b.pad(.12),{maxZoom:8})}}
 async function search(){
  const q=$('schoolSearch').value.trim();if(!q)return;
- $('searchStatus').textContent='Searching OpenStreetMap…';$('results').innerHTML='';
+ $('searchStatus').textContent='Searching Michigan school records…';$('results').innerHTML='';
  try{
-  const query=q.toLowerCase().includes('michigan')?q:q+', Michigan, USA';
-  const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q='+encodeURIComponent(query);
-  const res=await fetch(url,{headers:{'Accept-Language':'en-US'}});if(!res.ok)throw Error('Lookup unavailable');const data=await res.json();
-  const results=data.filter(p=>{const a=p.address||{};return (a.state||'').toLowerCase().includes('michigan')||p.display_name.toLowerCase().includes('michigan')||query.toLowerCase().includes('michigan')}).map(p=>{
-   const a=p.address||{};let name=p.name||p.display_name.split(',')[0];let city=a.city||a.town||a.village||a.hamlet||a.county||'Michigan';
-   return {name,city,lat:+p.lat,lon:+p.lon,osmType:p.type,display:p.display_name,category:p.category};
+  const term=q.replace(/'/g,"''").toUpperCase();
+  const where="STATE='MI' AND (UPPER(COMMONNM) LIKE '%"+term+"%' OR UPPER(OFFICIALNM) LIKE '%"+term+"%')";
+  const params=new URLSearchParams({where:where,outFields:'COMMONNM,OFFICIALNM,STREET,ADDRLINE2,CITY,STATE,ZIP,LATITUDE,LONGITUDE,ACTGRADES,ENTTYPENM,STATUS',returnGeometry:'false',resultRecordCount:'30',orderByFields:'COMMONNM ASC',f:'json'});
+  const url='https://gisagocss.state.mi.us/arcgis/rest/services/CSS/Schools_Districts/MapServer/0/query?'+params.toString();
+  const res=await fetch(url);if(!res.ok)throw Error('School database unavailable');const data=await res.json();if(data.error)throw Error(data.error.message||'School database error');
+  const records=(data.features||[]).map(f=>f.attributes||{}).filter(a=>Number.isFinite(+a.LATITUDE)&&Number.isFinite(+a.LONGITUDE)&&+a.LATITUDE>41&&+a.LATITUDE<49&&+a.LONGITUDE<-82&&+a.LONGITUDE>-91);
+  const gradeText=a=>String(a.ACTGRADES||'');
+  const looksHighSchool=a=>{const g=gradeText(a);return /(^|[^0-9])0?9([^0-9]|$)|(^|[^0-9])10([^0-9]|$)|(^|[^0-9])11([^0-9]|$)|(^|[^0-9])12([^0-9]|$)/.test(g)||/high school|senior high/i.test(String(a.COMMONNM||'')+' '+String(a.OFFICIALNM||''))};
+  const high=records.filter(looksHighSchool);
+  const chosen=(high.length?high:records).slice(0,20).map(a=>{
+   const name=String(a.COMMONNM||a.OFFICIALNM||'Michigan school').trim();const city=String(a.CITY||'Michigan').trim();
+   const street=[a.STREET,a.ADDRLINE2].filter(Boolean).join(', ');const address=[street,city,a.STATE,a.ZIP].filter(Boolean).join(', ');
+   return {name:name,city:city,lat:+a.LATITUDE,lon:+a.LONGITUDE,address:address,display:[address,gradeText(a)?'Grades '+gradeText(a):''].filter(Boolean).join(' · '),grades:gradeText(a),source:'Michigan CEPI school location database'};
   });
-  $('searchStatus').textContent=results.length?`Found ${results.length} possible location(s). Confirm the school and city before adding.`:'No Michigan results found. Try adding the city or district name.';
-  $('results').innerHTML=results.map((p,i)=>`<button class="result" data-result="${i}"><strong>${safe(p.name)}</strong><span>${safe(p.display)}</span></button>`).join('');
-  $('results').querySelectorAll('[data-result]').forEach(el=>el.onclick=()=>addTeam(results[+el.dataset.result]));
- }catch(e){$('searchStatus').textContent='Search failed. Check your internet connection and try again.'}
+  $('searchStatus').textContent=chosen.length?"Found "+chosen.length+" school location(s) from Michigan's state education database. Check the address and grade span, then verify MHSAA membership if needed.":'No matching Michigan schools found. Try a shorter name, such as Rockford or Cass.';
+  $('results').innerHTML=chosen.map((p,i)=>'<button class="result" data-result="'+i+'"><strong>'+safe(p.name)+'</strong><span>'+safe(p.display||p.city)+(p.grades?' · Grade span: '+safe(p.grades):'')+'</span></button>').join('');
+  $('results').querySelectorAll('[data-result]').forEach(el=>el.onclick=()=>addTeam(chosen[+el.dataset.result]));
+ }catch(e){$('searchStatus').textContent='The state school database could not be reached. Check your connection and try again, or use the MHSAA directory link to verify the school.'}
 }
 $('searchBtn').onclick=search;$('schoolSearch').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 $('format').onchange=()=>{const max=regionCount();teams.forEach(t=>{if(t.region>=max)t.region=t.region%max});render()};
@@ -138,7 +145,7 @@ $('autoAssign').onclick=()=>{
  render();$('saveStatus').textContent='Regions auto-assigned by approximate geographic clustering. Review and adjust manually.';
 };
 $('clearBtn').onclick=()=>{if(confirm('Remove all selected teams from this project?')){teams=[];render();$('searchStatus').textContent='All teams cleared.'}};
-function payload(){return {app:'Michigan HS Football Playoff Mapper',version:1,season:$('season').value,format:$('format').value,teams:teams.map(({id,name,city,lat,lon,region})=>({id,name,city,lat,lon,region}))}}
+function payload(){return {app:'Michigan HS Football Playoff Mapper',version:1,season:$('season').value,format:$('format').value,teams:teams.map(({id,name,city,address,lat,lon,region,source})=>({id,name,city,address,lat,lon,region,source}))}}
 function download(name,text,type){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
 $('saveBtn').onclick=()=>{try{localStorage.setItem('miHsPlayoffMapper',JSON.stringify(payload()));$('saveStatus').textContent='Saved in this browser. Use Export project for a portable backup.'}catch(e){$('saveStatus').textContent='Could not save in this browser. Export your project instead.'}};
 $('loadBtn').onclick=()=>{try{const s=localStorage.getItem('miHsPlayoffMapper');if(!s){$('saveStatus').textContent='No saved project found in this browser.';return}loadPayload(JSON.parse(s));$('saveStatus').textContent='Saved project loaded.'}catch(e){$('saveStatus').textContent='Could not load saved project.'}};
