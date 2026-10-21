@@ -116,12 +116,12 @@ async function search(){
   const looksHighSchool=a=>{const g=gradeText(a);return /(^|[^0-9])0?9([^0-9]|$)|(^|[^0-9])10([^0-9]|$)|(^|[^0-9])11([^0-9]|$)|(^|[^0-9])12([^0-9]|$)/.test(g)||/high school|senior high/i.test(String(a.COMMONNM||'')+' '+String(a.OFFICIALNM||''))};
   const high=records.filter(looksHighSchool);
   const chosen=(high.length?high:records).slice(0,20).map(a=>{
-   const name=String(a.COMMONNM||a.OFFICIALNM||'Michigan school').trim();const city=String(a.CITY||'Michigan').trim();
+   const name=String(a.COMMONNM||a.OFFICIALNM||'Michigan school').trim();const officialName=String(a.OFFICIALNM||a.COMMONNM||'').trim();const city=String(a.CITY||'Michigan').trim();
    const street=[a.STREET,a.ADDRLINE2].filter(Boolean).join(', ');const address=[street,city,a.STATE,a.ZIP].filter(Boolean).join(', ');
-   return {name:name,city:city,lat:+a.LATITUDE,lon:+a.LONGITUDE,address:address,display:[address,gradeText(a)?'Grades '+gradeText(a):''].filter(Boolean).join(' · '),grades:gradeText(a),source:'Michigan CEPI school location database'};
+   return {name:name,officialName:officialName,city:city,lat:+a.LATITUDE,lon:+a.LONGITUDE,address:address,display:[address,gradeText(a)?'Grades '+gradeText(a):''].filter(Boolean).join(' · '),grades:gradeText(a),source:'Michigan CEPI school location database'};
   });
   $('searchStatus').textContent=chosen.length?"Found "+chosen.length+" school location(s) from Michigan's state education database. Check the address and grade span, then verify MHSAA membership if needed.":'No matching Michigan schools found. Try a shorter name, such as Rockford or Cass.';
-  $('results').innerHTML=chosen.map((p,i)=>'<button class="result" data-result="'+i+'"><strong>'+safe(p.name)+'</strong><span>'+safe(p.display||p.city)+(p.grades?' · Grade span: '+safe(p.grades):'')+'</span></button>').join('');
+  $('results').innerHTML=chosen.map((p,i)=>'<button class="result" data-result="'+i+'"><strong>'+safe(p.name)+'</strong><span>'+(p.officialName&&p.officialName.toLowerCase()!==p.name.toLowerCase()?'Official name: '+safe(p.officialName)+' · ':'')+safe(p.display||p.city)+(p.grades?' · Grade span: '+safe(p.grades):'')+'</span></button>').join('');
   $('results').querySelectorAll('[data-result]').forEach(el=>el.onclick=()=>addTeam(chosen[+el.dataset.result]));
  }catch(e){$('searchStatus').textContent='The state school database could not be reached. Check your connection and try again, or use the MHSAA directory link to verify the school.'}
 }
