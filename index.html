@@ -41,7 +41,8 @@ footer{padding:0 16px 18px;max-width:1700px;margin:auto;color:var(--muted);font-
     <div>
       <label for="schoolSearch">SEARCH MICHIGAN HIGH SCHOOLS</label>
       <div class="row"><input id="schoolSearch" type="text" placeholder="e.g. Rockford, Gobles, Detroit Cass Tech"><button id="searchBtn" class="primary">Search</button></div>
-      <div class="subtle" style="margin-top:5px">Search by school name or school + city. Choose the correct school from results.</div>
+      <div class="subtle" style="margin-top:5px">Search by school name or school + city. Confirm the official name/address with MHSAA when results are ambiguous.</div>
+      <div style="margin-top:8px"><a id="mhsaaDirectoryLink" href="https://www.mhsaa.com/schools" target="_blank" rel="noopener noreferrer" style="display:inline-block;border:1px solid #cbd5df;border-radius:8px;padding:8px 10px;text-decoration:none;color:#1f5f46;font-weight:700;font-size:13px">Open official MHSAA School Directory ↗</a></div>
     </div>
     <div id="searchStatus" class="subtle" aria-live="polite"></div>
     <div id="results" class="results"></div>
